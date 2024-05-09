@@ -104,7 +104,7 @@ func processGEOJSON(c *gin.Context) {
 
 			distance := haversine(startingCoordinate[0], startingCoordinate[1], featureCoordinate[0], featureCoordinate[1])
 
-			maxDistanceInKm := 1000.0
+			maxDistanceInKm := 400.0
 			if distance < maxDistanceInKm {
 				numConnections++
 
@@ -118,7 +118,7 @@ func processGEOJSON(c *gin.Context) {
 					log.Println("Unexpected type for POP_MAX property")
 				}
 	
-				areaValue += uint64((float64(tmp) * distance) / 100000)
+				areaValue += uint64((float64(tmp) / distance))
 	
 				log.Printf("val: %d", areaValue)
 

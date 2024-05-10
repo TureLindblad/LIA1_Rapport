@@ -6,12 +6,16 @@ import (
 	"math"
 	"net/http"
 	"strconv"
+	"os"
 
 	"github.com/gin-gonic/gin"
 )
 
 var cityFeatures FeatureCollection
-var geographyFeatures FeatureCollection
+var countryFeatures FeatureCollection
+var airportFeatures FeatureCollection
+
+
 var lineFeatures FeatureCollection
 var pointFeature FeatureCollection
 
@@ -54,7 +58,7 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 }
 
 // From https://geojson.xyz/ populated places
-func buildGEOJSON(url string, f *FeatureCollection) {
+func buildGEOJSONfromURL(url string, f *FeatureCollection) {
 	response, err := http.Get(url)
 	if err != nil {
 		log.Print("Failed to fetch GeoJSON data")
@@ -69,12 +73,44 @@ func buildGEOJSON(url string, f *FeatureCollection) {
 	}
 }
 
+func buildGEOJSONfromFile(f *FeatureCollection) {
+	// From: https://data.opendatasoft.com/explore/dataset/geonames-all-cities-with-a-population-1000%40public/export/?disjunctive.cou_name_en&location=7,51.6998,12.62878&basemap=jawg.streets
+	geoJSONData, err := os.ReadFile("assets/cities-population-1000.geojson")
+	if err != nil {
+		log.Printf("Error reading GeoJSON file: %v", err)
+		return
+	}
+
+	err = json.Unmarshal(geoJSONData, &f)
+	if err != nil {
+		log.Printf("Error unmarshalling GeoJSON: %v", err)
+		return
+	}
+}
+
 type Coordinate struct {
 	Lat string `json:"lat"`
 	Lon string `json:"lon"`
 }
 
-func processGEOJSON(c *gin.Context) {
+// func processAirportGEOJSON() {
+// 	airportLinesFeatures = FeatureCollection{
+// 		Type: "FeatureCollection",
+// 		Features: []Feature{},
+// 	}
+// 	for _, airport := range airportFeatures.Features {
+// 		airportCoordinate := []float64{
+// 			airport.Geometry.Coordinates.([]interface{})[0].(float64),
+// 			airport.Geometry.Coordinates.([]interface{})[1].(float64),
+// 		}
+
+// 		for _, feature := range cityFeatures.Features {
+// 			generateConnectingLines(&airportLinesFeatures, &feature, airportCoordinate)
+// 		}
+// 	}
+// }
+
+func processPointGEOJSON(c *gin.Context) {
 	var coordinate Coordinate
 	if err := c.BindJSON(&coordinate); err != nil {
 		log.Print("Error binding")
@@ -83,8 +119,7 @@ func processGEOJSON(c *gin.Context) {
 
 	lat, _ := strconv.ParseFloat(coordinate.Lat, 64)
 	lon, _ := strconv.ParseFloat(coordinate.Lon, 64)
-	// startingCoordinates := generateStartingCoordinate()
-	startingCoordinates := [][]float64{{lon, lat}}
+	startingCoordinate := []float64{lon, lat}
 	
 
 	lineFeatures = FeatureCollection{
@@ -95,93 +130,62 @@ func processGEOJSON(c *gin.Context) {
 	var numConnections int16
 	var areaValue uint64
 
-	for _, startingCoordinate := range startingCoordinates {
-		for _, feature := range cityFeatures.Features {
-			featureCoordinate := []float64{
-				feature.Geometry.Coordinates.([]interface{})[0].(float64),
-				feature.Geometry.Coordinates.([]interface{})[1].(float64),
-			}
+	for _, feature := range cityFeatures.Features {
+		generateConnectingLines(&lineFeatures, &feature, startingCoordinate)
+	}
 
-			distance := haversine(startingCoordinate[0], startingCoordinate[1], featureCoordinate[0], featureCoordinate[1])
-
-			maxDistanceInKm := 400.0
-			if distance < maxDistanceInKm {
-				numConnections++
-
-				tmp := uint64(0)
-				switch v := feature.Properties["POP_MAX"].(type) {
-				case uint64:
-					tmp = v
-				case float64:
-					tmp = uint64(v)
-				default:
-					log.Println("Unexpected type for POP_MAX property")
-				}
-	
-				areaValue += uint64((float64(tmp) / distance))
-	
-				log.Printf("val: %d", areaValue)
-
-				lineString := [][]float64{startingCoordinate, featureCoordinate}
-
-				newFeature :=[]Feature{
-					{
-						Type: "Feature",
-						Geometry: Geometry{
-							Type:        "LineString",
-							Coordinates: lineString,
-						},
-					},
-				}
-
-				lineFeatures.Features = append(lineFeatures.Features, newFeature...)
-			}
-		}
-
-		pointFeature = FeatureCollection{
-			Type: "FeatureCollection",
-			Features: []Feature{
-				{
-					Type: "Feature",
-					Properties: map[string]interface{}{
-						"numConnections": numConnections,
-						"areaValue": areaValue,
-					},
-					Geometry: Geometry{
-						Type:        "Point",
-						Coordinates: startingCoordinate,
-					},
+	pointFeature = FeatureCollection{
+		Type: "FeatureCollection",
+		Features: []Feature{
+			{
+				Type: "Feature",
+				Properties: map[string]interface{}{
+					"numConnections": numConnections,
+					"areaValue": areaValue,
+				},
+				Geometry: Geometry{
+					Type:        "Point",
+					Coordinates: startingCoordinate,
 				},
 			},
-		}
+		},
 	}
 
 	c.JSON(http.StatusOK, lineFeatures)
 }
 
-// func generateStartingCoordinate() [][]float64{
-// 	var startingCoordinates [][]float64
-// 	numPoints := 10
+func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoordinate []float64) {
+	featureCoordinate := []float64{
+		feature.Geometry.Coordinates.([]interface{})[0].(float64),
+		feature.Geometry.Coordinates.([]interface{})[1].(float64),
+	}
 
-// 	latStep := 180.0 / math.Sqrt(float64(numPoints))
-// 	lonStep := 360.0 / math.Sqrt(float64(numPoints))
+	distance := haversine(startingCoordinate[0], startingCoordinate[1], featureCoordinate[0], featureCoordinate[1])
 
-// 	for lat := -90.0; lat <= 90.0; lat += latStep {
-// 		for lon := -180.0; lon <= 180.0; lon += lonStep {
-// 			newCoordinate := []float64{lon, lat}
-// 			startingCoordinates = append(startingCoordinates, newCoordinate)
-// 		}
-// 	}
+	maxDistanceInKm := 100.0 //make adjustable
+	if distance < maxDistanceInKm {
+		lineString := [][]float64{startingCoordinate, featureCoordinate}
 
-// 	return startingCoordinates
-// }
+		newFeature :=[]Feature{
+			{
+				Type: "Feature",
+				Geometry: Geometry{
+					Type:        "LineString",
+					Coordinates: lineString,
+				},
+			},
+		}
 
-func getCitiesGEOJSON(c *gin.Context) {
-	c.JSON(http.StatusOK, cityFeatures)
+		f.Features = append(f.Features, newFeature...)
+	}
 }
 
-func getGeographyGEOJSON(c *gin.Context) {
-	c.JSON(http.StatusOK, geographyFeatures)
+func getAirportsGEOJSON(c *gin.Context) {
+	c.JSON(http.StatusOK, airportFeatures)
+}
+
+func getCountriesGEOJSON(c *gin.Context) {
+	c.JSON(http.StatusOK, countryFeatures)
 }
 
 func getLinesGEOJSON(c *gin.Context) {
@@ -193,8 +197,10 @@ func getPointGEOJSON(c *gin.Context) {
 }
 
 func main() {
-	buildGEOJSON("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_populated_places.geojson", &cityFeatures)
-	buildGEOJSON("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_geography_regions_polys.geojson", &geographyFeatures)
+	buildGEOJSONfromFile(&cityFeatures)
+	buildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson", &countryFeatures)
+	buildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson", &airportFeatures)
+	// processAirportGEOJSON()
 
 	r := gin.Default()
 
@@ -206,12 +212,12 @@ func main() {
         c.HTML(http.StatusOK, "index.html", nil)
     })
 	
-	r.GET("/geojson/cities", getCitiesGEOJSON)
-	r.GET("/geojson/geography", getGeographyGEOJSON)
+	r.GET("/geojson/airports", getAirportsGEOJSON)
+	r.GET("/geojson/countries", getCountriesGEOJSON)
 	r.GET("/geojson/lines", getLinesGEOJSON)
 	r.GET("/geojson/point", getPointGEOJSON)
 
-	r.POST("/process", processGEOJSON)
+	r.POST("/process", processPointGEOJSON)
 	
 	r.Run("localhost:3000")
 }

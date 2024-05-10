@@ -1,10 +1,10 @@
-const citiesURL = "/geojson/cities"
-const geographyURL = "/geojson/geography"
+const airportsURL = "/geojson/airports"
+const countriesURL = "/geojson/countries"
 const linesURL = "/geojson/lines"
 const pointURL = "/geojson/point"
 
-const cities = L.layerGroup([]);
-const geography = L.layerGroup([]);
+const airports = L.layerGroup([]);
+const countries = L.layerGroup([]);
 const lines = L.layerGroup([]);
 const points = L.layerGroup([]);
 
@@ -26,7 +26,7 @@ const esri = L.tileLayer(
 var map = L.map('map', {
     center: [0, 0],
     zoom: 3,
-    layers: [osm, cities, geography, lines, points]
+    layers: [osm, airports, countries, lines, points]
 });
 
 function getGEOJSON(url) {
@@ -36,14 +36,14 @@ function getGEOJSON(url) {
         data.features.forEach(feature => {
             const mapFeature = L.geoJson(feature).addTo(map);
 
-            if (url === citiesURL) {
-                mapFeature.bindPopup(`${feature.properties.NAME}, Population: ${feature.properties.POP_MAX}`)
-                cities.addLayer(mapFeature)
+            if (url === airportsURL) {
+                mapFeature.bindPopup(`Airport: ${feature.properties.name}`)
+                airports.addLayer(mapFeature)
             }
             
-            if (url === geographyURL) {
+            if (url === countriesURL) {
                 mapFeature.setStyle({fillColor: getColor(feature.properties.featureclass), color: getColor(feature.properties.featureclass)});
-                geography.addLayer(mapFeature)
+                countries.addLayer(mapFeature)
             }
 
             if (url === linesURL) {
@@ -56,6 +56,27 @@ function getGEOJSON(url) {
                 points.addLayer(mapFeature)
             }
         });
+    })
+}
+
+function getAirportLines(lat, lon) {
+    const coordinates = {
+        "lat": lat,
+        "lon": lon
+    };
+
+    fetch("/process", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(coordinates)
+    })
+    .then(() => {
+        lines.clearLayers();
+    })
+    .then(() => {
+        getGEOJSON(linesURL)
     })
 }
 
@@ -102,8 +123,9 @@ function onMapClick(e) {
 
 map.on('click', onMapClick);
 
-getGEOJSON(citiesURL)
-getGEOJSON(geographyURL)
+getGEOJSON(airportsURL)
+getGEOJSON(airportLinesURL)
+getGEOJSON(countriesURL)
 
 var baseMaps = {
     "OpenStreetMap": osm,
@@ -111,8 +133,13 @@ var baseMaps = {
 };
 
 var overlayMaps = {
-    "Cities": cities,
-    "Geography": geography
+    "Airports": airports,
+    "Countries": countries
 };
 
 var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
+
+map.on('popupopen', function (e) {
+    var popup = e.popup;
+    getAirportLines(popup.getLatLng().lat.toString(), popup.getLatLng().lng.toString())
+});

@@ -15,9 +15,14 @@ var cityFeatures FeatureCollection
 var countryFeatures FeatureCollection
 var airportFeatures FeatureCollection
 
+var country Country
 
 var lineFeatures FeatureCollection
 var pointFeature FeatureCollection
+
+type Country struct {
+
+}
 
 type FeatureCollection struct {
     Type     string     `json:"type"`
@@ -57,7 +62,7 @@ func haversine(lat1, lon1, lat2, lon2 float64) float64 {
 	return distance
 }
 
-// From https://geojson.xyz/ populated places
+// From https://geojson.xyz/
 func buildGEOJSONfromURL(url string, f *FeatureCollection) {
 	response, err := http.Get(url)
 	if err != nil {
@@ -93,22 +98,28 @@ type Coordinate struct {
 	Lon string `json:"lon"`
 }
 
-// func processAirportGEOJSON() {
-// 	airportLinesFeatures = FeatureCollection{
-// 		Type: "FeatureCollection",
-// 		Features: []Feature{},
-// 	}
-// 	for _, airport := range airportFeatures.Features {
-// 		airportCoordinate := []float64{
-// 			airport.Geometry.Coordinates.([]interface{})[0].(float64),
-// 			airport.Geometry.Coordinates.([]interface{})[1].(float64),
-// 		}
+func processAirportGEOJSON() {
+	for _, country := range countryFeatures.Features {
+		var tmpFeatures FeatureCollection
 
-// 		for _, feature := range cityFeatures.Features {
-// 			generateConnectingLines(&airportLinesFeatures, &feature, airportCoordinate)
-// 		}
-// 	}
-// }
+		var numConnections int16
+		var connectedPopulation int64
+
+		for _, airport := range airportFeatures.Features {
+			airportCoordinate := []float64{
+				airport.Geometry.Coordinates.([]interface{})[0].(float64),
+				airport.Geometry.Coordinates.([]interface{})[1].(float64),
+			}
+
+			// IMPLEMENT CHECK IF AIRPORT IS IN COUNTRY
+			for _, feature := range cityFeatures.Features {
+				generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+			}
+		}
+
+		country.Properties["connectedPopulation"] = connectedPopulation
+	}
+}
 
 func processPointGEOJSON(c *gin.Context) {
 	var coordinate Coordinate
@@ -128,10 +139,10 @@ func processPointGEOJSON(c *gin.Context) {
 	}
 
 	var numConnections int16
-	var areaValue uint64
+	var connectedPopulation int64
 
 	for _, feature := range cityFeatures.Features {
-		generateConnectingLines(&lineFeatures, &feature, startingCoordinate)
+		generateConnectingLines(&lineFeatures, &feature, startingCoordinate, &numConnections, &connectedPopulation)
 	}
 
 	pointFeature = FeatureCollection{
@@ -141,7 +152,7 @@ func processPointGEOJSON(c *gin.Context) {
 				Type: "Feature",
 				Properties: map[string]interface{}{
 					"numConnections": numConnections,
-					"areaValue": areaValue,
+					"connectedPopulation": connectedPopulation,
 				},
 				Geometry: Geometry{
 					Type:        "Point",
@@ -154,7 +165,7 @@ func processPointGEOJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, lineFeatures)
 }
 
-func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoordinate []float64) {
+func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoordinate []float64, numConnections *int16, connectedPopulation *int64) {
 	featureCoordinate := []float64{
 		feature.Geometry.Coordinates.([]interface{})[0].(float64),
 		feature.Geometry.Coordinates.([]interface{})[1].(float64),
@@ -162,8 +173,18 @@ func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoo
 
 	distance := haversine(startingCoordinate[0], startingCoordinate[1], featureCoordinate[0], featureCoordinate[1])
 
-	maxDistanceInKm := 100.0 //make adjustable
+	maxDistanceInKm := 100.0 //make adjustable?
 	if distance < maxDistanceInKm {
+		*numConnections++
+		populationString, ok := feature.Properties["population"].(float64)
+		if !ok {
+			log.Printf("Error: population property is not a float64 for feature %v", feature.Properties["population"])
+		}
+
+		population := int64(populationString)
+	
+		*connectedPopulation += population
+
 		lineString := [][]float64{startingCoordinate, featureCoordinate}
 
 		newFeature :=[]Feature{
@@ -200,7 +221,7 @@ func main() {
 	buildGEOJSONfromFile(&cityFeatures)
 	buildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson", &countryFeatures)
 	buildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson", &airportFeatures)
-	// processAirportGEOJSON()
+	processAirportGEOJSON()
 
 	r := gin.Default()
 

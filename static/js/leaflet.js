@@ -37,7 +37,7 @@ function getGEOJSON(url) {
             const mapFeature = L.geoJson(feature).addTo(map);
 
             if (url === airportsURL) {
-                mapFeature.bindPopup(`Airport: ${feature.properties.name}`)
+                mapFeature.bindPopup(`Airport: ${feature.properties.name}, Connections: ${feature.properties.numConnections}`)
                 airports.addLayer(mapFeature)
             }
             
@@ -52,7 +52,7 @@ function getGEOJSON(url) {
             }
 
             if (url === pointURL) {
-                mapFeature.bindPopup(`Connections: ${feature.properties.numConnections}, AreaValue: ${feature.properties.areaValue}`)
+                mapFeature.bindPopup(`Connections: ${feature.properties.numConnections}, AreaValue: ${feature.properties.connectedPopulation}`)
                 points.addLayer(mapFeature)
             }
         });
@@ -124,7 +124,6 @@ function onMapClick(e) {
 map.on('click', onMapClick);
 
 getGEOJSON(airportsURL)
-getGEOJSON(airportLinesURL)
 getGEOJSON(countriesURL)
 
 var baseMaps = {
@@ -141,5 +140,11 @@ var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
 
 map.on('popupopen', function (e) {
     var popup = e.popup;
-    getAirportLines(popup.getLatLng().lat.toString(), popup.getLatLng().lng.toString())
+
+    getAirportLines(popup.getLatLng().lat.toString(), popup.getLatLng().lng.toString());
+});
+
+map.on('popupclose', function () {
+    points.clearLayers()
+    lines.clearLayers(); 
 });

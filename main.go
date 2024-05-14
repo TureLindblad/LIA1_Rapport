@@ -98,27 +98,178 @@ type Coordinate struct {
 	Lon string `json:"lon"`
 }
 
+type Point struct {
+	X float64 `json:"x"`
+	Y float64 `json:"y"`
+}
+
 func processAirportGEOJSON() {
 	for _, country := range countryFeatures.Features {
-		var tmpFeatures FeatureCollection
+		coordinates, ok := country.Geometry.Coordinates.([]interface{})
+		if !ok {
+			log.Printf("Error: Invalid coordinates")
+			continue
+		}
 
-		var numConnections int16
-		var connectedPopulation int64
+		var points [][][]Point // Changed points to accommodate multiple polygons and multipolygons
 
-		for _, airport := range airportFeatures.Features {
-			airportCoordinate := []float64{
-				airport.Geometry.Coordinates.([]interface{})[0].(float64),
-				airport.Geometry.Coordinates.([]interface{})[1].(float64),
-			}
+		// Iterate over each polygon (or multipolygon) in coordinates
+		for _, geom := range coordinates {
+			switch geom.(type) {
+			case []interface{}:
+				// Handle Polygon
+				polygon := geom.([]interface{})
+				var tmpPoints [][]Point
+				for _, ring := range polygon {
+					var tmpRing []Point
+					for _, coord := range ring.([]interface{}) {
+						parseCoordinates(coord, &tmpRing)
+					}
+					tmpPoints = append(tmpPoints, tmpRing)
+				}
+				points = append(points, tmpPoints)
 
-			// IMPLEMENT CHECK IF AIRPORT IS IN COUNTRY
-			for _, feature := range cityFeatures.Features {
-				generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+			case [][]interface{}:
+				// Handle MultiPolygon
+				multipolygon := geom.([][]interface{})
+				for _, polygon := range multipolygon {
+					var tmpPoints [][]Point
+					for _, ring := range polygon {
+						var tmpRing []Point
+						for _, coord := range ring.([]interface{}) {
+							parseCoordinates(coord, &tmpRing)
+						}
+						tmpPoints = append(tmpPoints, tmpRing)
+					}
+					points = append(points, tmpPoints)
+				}
 			}
 		}
 
+        var tmpFeatures FeatureCollection
+
+        var numConnections int16
+        var connectedPopulation int64
+
+        for _, airport := range airportFeatures.Features {
+            airportCoordinate := []float64{
+                airport.Geometry.Coordinates.([]interface{})[0].(float64),
+                airport.Geometry.Coordinates.([]interface{})[1].(float64),
+            }
+
+            // Check if the airport is within any of the polygons
+            for _, poly := range points {
+                if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, poly) {
+                    for _, feature := range cityFeatures.Features {
+                        generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+                    }
+                    break // No need to check further polygons
+                }
+            }
+
+            airport.Properties["numConnections"] = numConnections
+        }
+
+        country.Properties["connectedPopulation"] = connectedPopulation
 		country.Properties["connectedPopulation"] = connectedPopulation
 	}
+}
+
+func parseCoordinates(coord interface{}, points *[]Point) {
+    switch c := coord.(type) {
+    case []interface{}:
+        if len(c) >= 2 {
+            x, okX := c[0].(float64)
+            y, okY := c[1].(float64)
+            if okX && okY {
+                *points = append(*points, Point{X: x, Y: y})
+            }
+        }
+    }
+}
+
+// func processAirportGEOJSON() {
+// 	for _, country := range countryFeatures.Features {
+// 		coordinates, ok := country.Geometry.Coordinates.([]interface{})
+// 		if !ok {
+// 			log.Printf("Error: Invalid coordinates")
+// 			continue
+// 		}
+
+// 		var points [][]Point
+// 		log.Printf("LENGTH: %d", len(coordinates))
+// 		for i := 0; i < len(coordinates); i++ {
+// 			var tmpPoints []Point
+// 			for _, coord := range coordinates[i].([]interface{}) {
+// 				point := coord.([]interface{})
+// 				x, okX := point[0].(float64)
+// 				y, okY := point[1].(float64)
+// 				if !okX || !okY {
+// 					log.Print("Feature was not able to be converted to point")
+// 					continue
+// 				}
+// 				tmpPoints = append(tmpPoints, Point{X: x, Y: y})
+// 			}
+// 			points = append(points, tmpPoints)
+// 		}
+
+// 		var tmpFeatures FeatureCollection
+
+// 		var numConnections int16
+// 		var connectedPopulation int64
+
+// 		for _, airport := range airportFeatures.Features {
+// 			airportCoordinate := []float64{
+// 				airport.Geometry.Coordinates.([]interface{})[0].(float64),
+// 				airport.Geometry.Coordinates.([]interface{})[1].(float64),
+// 			}
+
+// 			if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, points) {
+// 				for _, feature := range cityFeatures.Features {
+// 					generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+// 				}
+// 			}
+
+// 			airport.Properties["numConnections"] = numConnections
+// 		}
+
+// 		country.Properties["connectedPopulation"] = connectedPopulation
+// 	}
+// }
+
+// From https://www.geeksforgeeks.org/how-to-check-if-a-given-point-lies-inside-a-polygon/
+func pointInPolygon(point Point, multiPolygon [][]Point) bool {
+	inside := false
+
+	for _, polygon := range multiPolygon {
+		if len(polygon) > 0 {
+			numVertices := len(polygon)
+			x, y := point.X, point.Y
+
+			p1 := polygon[0]
+			var p2 Point
+
+			for i := 1; i <= numVertices; i++ {
+				p2 = polygon[i%numVertices]
+
+				if y > math.Min(p1.Y, p2.Y) {
+					if y <= math.Max(p1.Y, p2.Y) {
+						if x <= math.Max(p1.X, p2.X) {
+							xIntersection := (y-p1.Y)*(p2.X-p1.X)/(p2.Y-p1.Y) + p1.X
+
+							if p1.X == p2.X || x <= xIntersection {
+								inside = !inside
+							}
+						}
+					}
+				}
+
+				p1 = p2
+			}
+		}
+	}
+
+	return inside
 }
 
 func processPointGEOJSON(c *gin.Context) {

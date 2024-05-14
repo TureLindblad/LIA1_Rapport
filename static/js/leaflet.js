@@ -42,7 +42,8 @@ function getGEOJSON(url) {
             }
             
             if (url === countriesURL) {
-                mapFeature.setStyle({fillColor: getColor(feature.properties.featureclass), color: getColor(feature.properties.featureclass)});
+                mapFeature.bindPopup(`Country: ${feature.properties.brk_name}, Connected population: ${feature.properties.connectedPopulation}`)
+                mapFeature.setStyle({fillColor: getColor(feature.properties.connectedPopulation), color: getColor(feature.properties.connectedPopulation)});
                 countries.addLayer(mapFeature)
             }
 
@@ -52,7 +53,7 @@ function getGEOJSON(url) {
             }
 
             if (url === pointURL) {
-                mapFeature.bindPopup(`Connections: ${feature.properties.numConnections}, AreaValue: ${feature.properties.connectedPopulation}`)
+                mapFeature.bindPopup(`Connections: ${feature.properties.numConnections}, Connected population: ${feature.properties.connectedPopulation}`)
                 points.addLayer(mapFeature)
             }
         });
@@ -80,18 +81,19 @@ function getAirportLines(lat, lon) {
     })
 }
 
-function getColor(type) {
-    switch (type) {
-        case "Island group":
-            return 'green'
-        case "Continent":
-            return 'yellow'
-        case "Range/mtn":
-            return 'brown'
-        case "Basin":
-            return 'blue'
-        default:
-            return 'gray'
+function getColor(pop) {
+    if (pop > 500000000) {
+        return '#e93e3a';
+    } else if (pop > 100000000) {
+        return '#ed683c';
+    } else if (pop > 10000000) {
+        return '#f3903f';
+    } else if (pop > 100000) {
+        return '#fdc70c';
+    } else if (pop > 0) {
+        return '#fff33b';
+    } else {
+        return 'gray';
     }
 }
 

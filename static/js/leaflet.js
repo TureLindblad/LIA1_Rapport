@@ -97,33 +97,46 @@ function getColor(pop) {
     }
 }
 
-function onMapClick(e) {
-    const lat = e.latlng.lat.toString();
-    const lon = e.latlng.lng.toString();
+// function onMapClick(e) {
+//     if (placingActive) {
+//         const lat = e.latlng.lat.toString();
+//         const lon = e.latlng.lng.toString();
 
-    const coordinates = {
-        "lat": lat,
-        "lon": lon
-    };
+//         const coordinates = {
+//             "lat": lat,
+//             "lon": lon
+//         };
 
-    fetch("/process", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(coordinates)
-    })
-    .then(() => {
-        points.clearLayers();
-        lines.clearLayers();
-    })
-    .then(() => {
-        getGEOJSON(pointURL)
-        getGEOJSON(linesURL)
-    })
-}
+//         fetch("/process", {
+//             method: "POST",
+//             headers: {
+//                 "Content-Type": "application/json"
+//             },
+//             body: JSON.stringify(coordinates)
+//         })
+//         .then(() => {
+//             points.clearLayers();
+//             lines.clearLayers();
+//         })
+//         .then(() => {
+//             getGEOJSON(pointURL)
+//             getGEOJSON(linesURL)
+//         })
+//     }
+// }
 
-map.on('click', onMapClick);
+// map.on('click', onMapClick);
+
+let placingActive = false
+
+document.querySelector("#toggle").addEventListener('click', () => {
+    console.log(placingActive)
+    if (placingActive) {
+        placingActive = false
+    } else {
+        placingActive = true
+    }
+})
 
 getGEOJSON(airportsURL)
 getGEOJSON(countriesURL)

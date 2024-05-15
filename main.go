@@ -11,18 +11,77 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// THIS WORKS FOR MULTI AND SINGLE
+
+// for _, geom := range coordinates {
+// 	switch geom.(type) {
+// 	case []interface{}:
+// 		// Handle Polygon
+// 		polygon := geom.([]interface{})
+// 		var tmpPoints [][]Point
+// 		var tmpRing []Point
+// 		for _, coord := range polygon {
+// 			parseCoordinates(coord, &tmpRing)
+// 		}
+// 		tmpPoints = append(tmpPoints, tmpRing)
+// 		points = append(points, tmpPoints)
+// 		break // Terminate the switch statement after processing this case
+	
+// 	case [][]interface{}:
+// 		// Handle MultiPolygon
+// 		multipolygon := geom.([][]interface{})
+// 		for _, polygon := range multipolygon {
+// 			var tmpPoints [][]Point
+// 			var tmpRing []Point
+// 			for _, coord := range polygon {
+// 				parseCoordinates(coord, &tmpRing)
+// 			}
+// 			tmpPoints = append(tmpPoints, tmpRing)
+// 			points = append(points, tmpPoints)
+// 		}
+// 		break // Terminate the switch statement after processing this case
+	
+// 	default:
+// 		// Handle other types if necessary
+// 	}
+
+// 	switch geom.(type) {
+// 	case []interface{}:
+// 		// Handle Polygon
+// 		polygon := geom.([]interface{})
+// 		var tmpPoints [][]Point
+// 		for _, ring := range polygon {
+// 			var tmpRing []Point
+// 			for _, coord := range ring.([]interface{}) {
+// 				parseCoordinates(coord, &tmpRing)
+// 			}
+// 			tmpPoints = append(tmpPoints, tmpRing)
+// 		}
+// 		points = append(points, tmpPoints)
+
+// 	case [][]interface{}:
+// 		// Handle MultiPolygon
+// 		multipolygon := geom.([][]interface{})
+// 		for _, polygon := range multipolygon {
+// 			var tmpPoints [][]Point
+// 			for _, ring := range polygon {
+// 				var tmpRing []Point
+// 				for _, coord := range ring.([]interface{}) {
+// 					parseCoordinates(coord, &tmpRing)
+// 				}
+// 				tmpPoints = append(tmpPoints, tmpRing)
+// 			}
+// 			points = append(points, tmpPoints)
+// 		}
+// 	}
+// }
+
 var cityFeatures FeatureCollection
 var countryFeatures FeatureCollection
 var airportFeatures FeatureCollection
 
-var country Country
-
 var lineFeatures FeatureCollection
 var pointFeature FeatureCollection
-
-type Country struct {
-
-}
 
 type FeatureCollection struct {
     Type     string     `json:"type"`
@@ -103,75 +162,71 @@ type Point struct {
 	Y float64 `json:"y"`
 }
 
-func processAirportGEOJSON() {
+func processAllDataGEOJSON() {
 	for _, country := range countryFeatures.Features {
 		coordinates, ok := country.Geometry.Coordinates.([]interface{})
 		if !ok {
 			log.Printf("Error: Invalid coordinates")
 			continue
 		}
+		
+		var points [][][]Point
 
-		var points [][][]Point // Changed points to accommodate multiple polygons and multipolygons
-
-		// Iterate over each polygon (or multipolygon) in coordinates
 		for _, geom := range coordinates {
-			switch geom.(type) {
-			case []interface{}:
-				// Handle Polygon
-				polygon := geom.([]interface{})
-				var tmpPoints [][]Point
-				for _, ring := range polygon {
-					var tmpRing []Point
-					for _, coord := range ring.([]interface{}) {
-						parseCoordinates(coord, &tmpRing)
-					}
-					tmpPoints = append(tmpPoints, tmpRing)
-				}
-				points = append(points, tmpPoints)
+			polyOrMultiPoly := geom.([]interface{})
 
-			case [][]interface{}:
-				// Handle MultiPolygon
-				multipolygon := geom.([][]interface{})
-				for _, polygon := range multipolygon {
-					var tmpPoints [][]Point
-					for _, ring := range polygon {
-						var tmpRing []Point
-						for _, coord := range ring.([]interface{}) {
-							parseCoordinates(coord, &tmpRing)
-						}
-						tmpPoints = append(tmpPoints, tmpRing)
-					}
-					points = append(points, tmpPoints)
-				}
+			var tmpPoints [][]Point
+
+			// For single polygon
+			var tmpRing []Point
+			for _, coord := range polyOrMultiPoly {
+				parseCoordinates(coord, &tmpRing)
 			}
+			tmpPoints = append(tmpPoints, tmpRing)
+			points = append(points, tmpPoints)
+
+			// For multi polygon
+			for _, ring := range polyOrMultiPoly {
+				for _, coord := range ring.([]interface{}) {
+					parseCoordinates(coord, &tmpRing)
+				}
+				tmpPoints = append(tmpPoints, tmpRing)
+			}
+
+			points = append(points, tmpPoints)
 		}
 
         var tmpFeatures FeatureCollection
 
         var numConnections int16
-        var connectedPopulation int64
+        var totalConnectedPopulation int64
 
         for _, airport := range airportFeatures.Features {
+			var connectedPopulation int64
+
             airportCoordinate := []float64{
                 airport.Geometry.Coordinates.([]interface{})[0].(float64),
                 airport.Geometry.Coordinates.([]interface{})[1].(float64),
             }
 
-            // Check if the airport is within any of the polygons
-            for _, poly := range points {
-                if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, poly) {
+            for _, multiPoly := range points {
+                if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, multiPoly) {
                     for _, feature := range cityFeatures.Features {
-                        generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+						if feature.Properties["marked"] != "marked" {
+                        	generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+						}
                     }
-                    break // No need to check further polygons
+                    break
                 }
             }
 
             airport.Properties["numConnections"] = numConnections
+			airport.Properties["connectedPopulation"] = connectedPopulation
+
+			totalConnectedPopulation += connectedPopulation
         }
 
-        country.Properties["connectedPopulation"] = connectedPopulation
-		country.Properties["connectedPopulation"] = connectedPopulation
+		country.Properties["connectedPopulation"] = totalConnectedPopulation
 	}
 }
 
@@ -187,55 +242,6 @@ func parseCoordinates(coord interface{}, points *[]Point) {
         }
     }
 }
-
-// func processAirportGEOJSON() {
-// 	for _, country := range countryFeatures.Features {
-// 		coordinates, ok := country.Geometry.Coordinates.([]interface{})
-// 		if !ok {
-// 			log.Printf("Error: Invalid coordinates")
-// 			continue
-// 		}
-
-// 		var points [][]Point
-// 		log.Printf("LENGTH: %d", len(coordinates))
-// 		for i := 0; i < len(coordinates); i++ {
-// 			var tmpPoints []Point
-// 			for _, coord := range coordinates[i].([]interface{}) {
-// 				point := coord.([]interface{})
-// 				x, okX := point[0].(float64)
-// 				y, okY := point[1].(float64)
-// 				if !okX || !okY {
-// 					log.Print("Feature was not able to be converted to point")
-// 					continue
-// 				}
-// 				tmpPoints = append(tmpPoints, Point{X: x, Y: y})
-// 			}
-// 			points = append(points, tmpPoints)
-// 		}
-
-// 		var tmpFeatures FeatureCollection
-
-// 		var numConnections int16
-// 		var connectedPopulation int64
-
-// 		for _, airport := range airportFeatures.Features {
-// 			airportCoordinate := []float64{
-// 				airport.Geometry.Coordinates.([]interface{})[0].(float64),
-// 				airport.Geometry.Coordinates.([]interface{})[1].(float64),
-// 			}
-
-// 			if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, points) {
-// 				for _, feature := range cityFeatures.Features {
-// 					generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
-// 				}
-// 			}
-
-// 			airport.Properties["numConnections"] = numConnections
-// 		}
-
-// 		country.Properties["connectedPopulation"] = connectedPopulation
-// 	}
-// }
 
 // From https://www.geeksforgeeks.org/how-to-check-if-a-given-point-lies-inside-a-polygon/
 func pointInPolygon(point Point, multiPolygon [][]Point) bool {
@@ -333,6 +339,9 @@ func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoo
 		}
 
 		population := int64(populationString)
+
+		// Mark city so its not counted by other airports
+		feature.Properties["marked"] = "marked"
 	
 		*connectedPopulation += population
 
@@ -372,7 +381,7 @@ func main() {
 	buildGEOJSONfromFile(&cityFeatures)
 	buildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson", &countryFeatures)
 	buildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson", &airportFeatures)
-	processAirportGEOJSON()
+	processAllDataGEOJSON()
 
 	r := gin.Default()
 

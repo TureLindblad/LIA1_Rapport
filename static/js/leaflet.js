@@ -13,13 +13,13 @@ const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '&copy; <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 });
 
-mapLink = 
+mapLink =
     '<a href="http://www.esri.com/">Esri</a>';
-wholink = 
+wholink =
     'i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community';
 const esri = L.tileLayer(
     'http://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-    attribution: '&copy; '+mapLink+', '+wholink,
+    attribution: '&copy; ' + mapLink + ', ' + wholink,
     maxZoom: 19,
 });
 
@@ -31,54 +31,38 @@ var map = L.map('map', {
 
 function getGEOJSON(url) {
     fetch(url)
-    .then(response => response.json())
-    .then((data) => {
-        data.features.forEach(feature => {
-            const mapFeature = L.geoJson(feature).addTo(map);
+        .then(response => response.json())
+        .then((data) => {
+            data.features.forEach(feature => {
+                const mapFeature = L.geoJson(feature).addTo(map);
 
-            if (url === airportsURL) {
-                mapFeature.bindPopup(`Airport: ${feature.properties.name}, Connections: ${feature.properties.numConnections}`)
-                airports.addLayer(mapFeature)
-            }
-            
-            if (url === countriesURL) {
-                mapFeature.bindPopup(`Country: ${feature.properties.brk_name}, Connected population: ${feature.properties.connectedPopulation}`)
-                mapFeature.setStyle({fillColor: getColor(feature.properties.connectedPopulation), color: getColor(feature.properties.connectedPopulation)});
-                countries.addLayer(mapFeature)
-            }
+                if (url === airportsURL) {
+                    mapFeature.bindPopup(`Airport: ${feature.properties.name}, Connections: ${feature.properties.numConnections}, Connected population: ${feature.properties.connectedPopulation}`)
+                    airports.addLayer(mapFeature)
+                }
 
-            if (url === linesURL) {
-                mapFeature.setStyle({fillColor: "red", color: "red"});
-                lines.addLayer(mapFeature)
-            }
+                if (url === countriesURL) {
+                    const coveragePrecentage = Math.round(parseInt(feature.properties.connectedPopulation) / parseInt(feature.properties.pop_est) * 100)
+                    mapFeature.bindPopup(`Country: ${feature.properties.brk_name}, 
+                    Connected population: ${feature.properties.connectedPopulation}, 
+                    Total population: ${feature.properties.pop_est}
+                    Coverage precentage: ${coveragePrecentage}%`)
 
-            if (url === pointURL) {
-                mapFeature.bindPopup(`Connections: ${feature.properties.numConnections}, Connected population: ${feature.properties.connectedPopulation}`)
-                points.addLayer(mapFeature)
-            }
-        });
-    })
-}
+                    mapFeature.setStyle({ fillColor: getColor(feature.properties.connectedPopulation), color: getColor(feature.properties.connectedPopulation) });
+                    countries.addLayer(mapFeature)
+                }
 
-function getAirportLines(lat, lon) {
-    const coordinates = {
-        "lat": lat,
-        "lon": lon
-    };
+                if (url === linesURL) {
+                    mapFeature.setStyle({ fillColor: "red", color: "red" });
+                    lines.addLayer(mapFeature)
+                }
 
-    fetch("/process", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify(coordinates)
-    })
-    .then(() => {
-        lines.clearLayers();
-    })
-    .then(() => {
-        getGEOJSON(linesURL)
-    })
+                if (url === pointURL) {
+                    mapFeature.bindPopup(`Connections: ${feature.properties.numConnections}, Connected population: ${feature.properties.connectedPopulation}`)
+                    points.addLayer(mapFeature)
+                }
+            });
+        })
 }
 
 function getColor(pop) {
@@ -97,46 +81,68 @@ function getColor(pop) {
     }
 }
 
-// function onMapClick(e) {
-//     if (placingActive) {
-//         const lat = e.latlng.lat.toString();
-//         const lon = e.latlng.lng.toString();
-
-//         const coordinates = {
-//             "lat": lat,
-//             "lon": lon
-//         };
-
-//         fetch("/process", {
-//             method: "POST",
-//             headers: {
-//                 "Content-Type": "application/json"
-//             },
-//             body: JSON.stringify(coordinates)
-//         })
-//         .then(() => {
-//             points.clearLayers();
-//             lines.clearLayers();
-//         })
-//         .then(() => {
-//             getGEOJSON(pointURL)
-//             getGEOJSON(linesURL)
-//         })
-//     }
-// }
-
-// map.on('click', onMapClick);
-
 let placingActive = false
 
-document.querySelector("#toggle").addEventListener('click', () => {
-    console.log(placingActive)
+document.querySelector("#toggle").addEventListener('click', (element) => {
     if (placingActive) {
         placingActive = false
     } else {
         placingActive = true
     }
+
+    document.querySelector("#toggle").innerHTML = placingActive ? "Placing: Active" : "Placing: Inactive";
 })
+
+function onMapClick(e) {
+    if (placingActive) {
+        const lat = e.latlng.lat.toString();
+        const lon = e.latlng.lng.toString();
+
+        const coordinates = {
+            "lat": lat,
+            "lon": lon
+        };
+
+        fetch("/process", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify(coordinates)
+        })
+            .then(() => {
+                points.clearLayers();
+                // lines.clearLayers();
+            })
+            .then(() => {
+                getGEOJSON(pointURL)
+                // getGEOJSON(linesURL)
+            })
+    }
+}
+
+map.on('click', onMapClick);
+
+function getLines(lat, lon) {
+    const coordinates = {
+        "lat": lat,
+        "lon": lon
+    };
+
+    fetch("/process", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(coordinates)
+    })
+        .then(() => {
+            lines.clearLayers();
+        })
+        .then(() => {
+            getGEOJSON(linesURL)
+        })
+}
 
 getGEOJSON(airportsURL)
 getGEOJSON(countriesURL)
@@ -154,12 +160,14 @@ var overlayMaps = {
 var layerControl = L.control.layers(baseMaps, overlayMaps).addTo(map);
 
 map.on('popupopen', function (e) {
-    var popup = e.popup;
+    if (placingActive) {
+        var popup = e.popup;
 
-    getAirportLines(popup.getLatLng().lat.toString(), popup.getLatLng().lng.toString());
+        getLines(popup.getLatLng().lat.toString(), popup.getLatLng().lng.toString());
+    }
 });
 
 map.on('popupclose', function () {
     points.clearLayers()
-    lines.clearLayers(); 
+    lines.clearLayers();
 });

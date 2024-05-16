@@ -43,10 +43,11 @@ function getGEOJSON(url) {
 
                 if (url === countriesURL) {
                     const coveragePrecentage = Math.round(parseInt(feature.properties.connectedPopulation) / parseInt(feature.properties.pop_est) * 100)
-                    mapFeature.bindPopup(`Country: ${feature.properties.brk_name}, 
-                    Connected population: ${feature.properties.connectedPopulation}, 
-                    Total population: ${feature.properties.pop_est}
-                    Coverage precentage: ${coveragePrecentage}%`)
+                    mapFeature.bindPopup(`<p>Country: ${feature.properties.brk_name}</p> 
+                    <p>Connected population: ${feature.properties.connectedPopulation}</p>
+                    <p>Total population: ${feature.properties.pop_est}</p>
+                    <p>Coverage precentage: ${coveragePrecentage}%</p>
+                    <p>Number of airports:  ${feature.properties.numberAirports}</p>`)
 
                     mapFeature.setStyle({ fillColor: getColor(feature.properties.connectedPopulation), color: getColor(feature.properties.connectedPopulation) });
                     countries.addLayer(mapFeature)
@@ -112,11 +113,9 @@ function onMapClick(e) {
         })
             .then(() => {
                 points.clearLayers();
-                // lines.clearLayers();
             })
             .then(() => {
                 getGEOJSON(pointURL)
-                // getGEOJSON(linesURL)
             })
     }
 }

@@ -163,7 +163,15 @@ type Point struct {
 }
 
 func processAllDataGEOJSON() {
+	var timeCounter int64
+
 	for _, country := range countryFeatures.Features {
+		timeCounter++
+
+		if timeCounter % 10 == 0 {
+			log.Printf("%d countries", timeCounter)
+		}
+
 		coordinates, ok := country.Geometry.Coordinates.([]interface{})
 		if !ok {
 			log.Printf("Error: Invalid coordinates")
@@ -198,10 +206,13 @@ func processAllDataGEOJSON() {
 
         var tmpFeatures FeatureCollection
 
-        var numConnections int16
         var totalConnectedPopulation int64
+		var numberAirports int64
 
         for _, airport := range airportFeatures.Features {
+
+
+			var numConnections int64
 			var connectedPopulation int64
 
             airportCoordinate := []float64{
@@ -211,9 +222,15 @@ func processAllDataGEOJSON() {
 
             for _, multiPoly := range points {
                 if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, multiPoly) {
-                    for _, feature := range cityFeatures.Features {
-						if feature.Properties["marked"] != "marked" {
-                        	generateConnectingLines(&tmpFeatures, &feature, airportCoordinate, &numConnections, &connectedPopulation)
+					numberAirports++
+                    for _, city := range cityFeatures.Features {
+						// cityCoordinate := []float64{
+						// 	city.Geometry.Coordinates.([]interface{})[0].(float64),
+						// 	city.Geometry.Coordinates.([]interface{})[1].(float64),
+						// }
+
+						if city.Properties["marked"] != "marked" /*&& pointInPolygon(Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, multiPoly)*/ {
+                        	generateConnectingLines(&tmpFeatures, &city, airportCoordinate, &numConnections, &connectedPopulation)
 						}
                     }
                     break
@@ -227,6 +244,7 @@ func processAllDataGEOJSON() {
         }
 
 		country.Properties["connectedPopulation"] = totalConnectedPopulation
+		country.Properties["numberAirports"] = numberAirports
 	}
 }
 
@@ -295,7 +313,7 @@ func processPointGEOJSON(c *gin.Context) {
 		Features: []Feature{},
 	}
 
-	var numConnections int16
+	var numConnections int64
 	var connectedPopulation int64
 
 	for _, feature := range cityFeatures.Features {
@@ -322,7 +340,7 @@ func processPointGEOJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, lineFeatures)
 }
 
-func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoordinate []float64, numConnections *int16, connectedPopulation *int64) {
+func generateConnectingLines(f *FeatureCollection, feature *Feature, startingCoordinate []float64, numConnections *int64, connectedPopulation *int64) {
 	featureCoordinate := []float64{
 		feature.Geometry.Coordinates.([]interface{})[0].(float64),
 		feature.Geometry.Coordinates.([]interface{})[1].(float64),

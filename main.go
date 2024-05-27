@@ -169,7 +169,8 @@ func processAllDataGEOJSON() {
 		timeCounter++
 
 		if timeCounter % 10 == 0 {
-			log.Printf("%d countries", timeCounter)
+			percentage := float64(timeCounter) / 250.0 * 100
+			log.Printf("%v percentage", percentage)
 		}
 
 		coordinates, ok := country.Geometry.Coordinates.([]interface{})
@@ -224,17 +225,17 @@ func processAllDataGEOJSON() {
                 if pointInPolygon(Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, multiPoly) {
 					numberAirports++
                     for _, city := range cityFeatures.Features {
-						// cityCoordinate := []float64{
-						// 	city.Geometry.Coordinates.([]interface{})[0].(float64),
-						// 	city.Geometry.Coordinates.([]interface{})[1].(float64),
-						// }
+						cityCoordinate := []float64{
+							city.Geometry.Coordinates.([]interface{})[0].(float64),
+							city.Geometry.Coordinates.([]interface{})[1].(float64),
+						}
 
-						if city.Properties["marked"] != "marked" /*&& pointInPolygon(Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, multiPoly)*/ {
+						if city.Properties["marked"] != "marked" && pointInPolygon(Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, multiPoly) {
                         	generateConnectingLines(&tmpFeatures, &city, airportCoordinate, &numConnections, &connectedPopulation)
 						}
                     }
                     break
-                }
+                }	
             }
 
             airport.Properties["numConnections"] = numConnections
@@ -282,7 +283,7 @@ func pointInPolygon(point Point, multiPolygon [][]Point) bool {
 							xIntersection := (y-p1.Y)*(p2.X-p1.X)/(p2.Y-p1.Y) + p1.X
 
 							if p1.X == p2.X || x <= xIntersection {
-								inside = !inside
+								return true
 							}
 						}
 					}

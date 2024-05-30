@@ -49,7 +49,7 @@ function getGEOJSON(url) {
                     <p>Coverage precentage: ${coveragePrecentage}%</p>
                     <p>Number of airports:  ${feature.properties.numberAirports}</p>`)
 
-                    mapFeature.setStyle({ fillColor: getColor(feature.properties.connectedPopulation), color: getColor(feature.properties.connectedPopulation) });
+                    mapFeature.setStyle({ fillColor: getColor(coveragePrecentage), color: getColor(coveragePrecentage) });
                     countries.addLayer(mapFeature)
                 }
 
@@ -66,16 +66,16 @@ function getGEOJSON(url) {
         })
 }
 
-function getColor(pop) {
-    if (pop > 500000000) {
+function getColor(cov) {
+    if (cov > 80) {
         return '#e93e3a';
-    } else if (pop > 100000000) {
+    } else if (cov > 60) {
         return '#ed683c';
-    } else if (pop > 10000000) {
+    } else if (cov > 40) {
         return '#f3903f';
-    } else if (pop > 100000) {
+    } else if (cov > 20) {
         return '#fdc70c';
-    } else if (pop > 0) {
+    } else if (cov > 0) {
         return '#fff33b';
     } else {
         return 'gray';

@@ -82,12 +82,12 @@ func ProcessAllDataGEOJSON() {
                 if PointInPolygon(util.Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, polygon) {
 					numberAirports++
                     for _, city := range CityFeatures.Features {
-						// cityCoordinate := []float64{
-						// 	city.Geometry.Coordinates.([]interface{})[0].(float64),
-						// 	city.Geometry.Coordinates.([]interface{})[1].(float64),
-						// }
+						cityCoordinate := []float64{
+							city.Geometry.Coordinates.([]interface{})[0].(float64),
+							city.Geometry.Coordinates.([]interface{})[1].(float64),
+						}
 
-						if city.Properties["marked"] != "marked" /*&& pointInPolygon(Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, polygon)*/ {
+						if city.Properties["marked"] != "marked" && PointInPolygon(util.Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, polygon) {
 							CheckCity(&city, airportCoordinate, &numConnections, &connectedPopulation)
 						}
                     }
@@ -218,7 +218,8 @@ func GenerateConnectingLines(f *util.FeatureCollection, feature *util.Feature, s
 		feature.Geometry.Coordinates.([]interface{})[1].(float64),
 	}
 
-	distance := util.Haversine(startingCoordinate[0], startingCoordinate[1], featureCoordinate[0], featureCoordinate[1])
+	// Coordinates from Leaflet are in order Lon Lat and have to be fed into the function reversed
+	distance := util.Haversine(startingCoordinate[1], startingCoordinate[0], featureCoordinate[1], featureCoordinate[0])
 
 	maxDistanceInKm := 100.0 //make adjustable?
 	if distance < maxDistanceInKm {
@@ -257,7 +258,8 @@ func CheckCity(feature *util.Feature, startingCoordinate []float64, numConnectio
 		feature.Geometry.Coordinates.([]interface{})[1].(float64),
 	}
 
-	distance := util.Haversine(startingCoordinate[0], startingCoordinate[1], featureCoordinate[0], featureCoordinate[1])
+	// Coordinates from Leaflet are in order Lon Lat and have to be fed into the function reversed
+	distance := util.Haversine(startingCoordinate[1], startingCoordinate[0], featureCoordinate[1], featureCoordinate[0])
 
 	maxDistanceInKm := 100.0 //make adjustable?
 	if distance < maxDistanceInKm {

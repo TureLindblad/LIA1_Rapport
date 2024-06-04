@@ -7,8 +7,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"rapport/processing"
 	"rapport/build"
+	"rapport/processing"
+	"rapport/util"
 )
 
 func getAirportsGEOJSON(c *gin.Context) {
@@ -27,13 +28,37 @@ func getPointGEOJSON(c *gin.Context) {
 	c.JSON(http.StatusOK, processing.PointFeature)
 }
 
+func buildFromFile() {
+	build.BuildGEOJSONfromFile(&processing.CityFeatures, "assets/preMade/city_features.geojson")
+	build.BuildGEOJSONfromFile(&processing.CountryFeatures, "assets/preMade/country_features.geojson")
+	build.BuildGEOJSONfromFile(&processing.AirportFeatures, "assets/preMade/airport_features.geojson")
+}
+
+func saveToFile() {
+	build.SaveToFile(processing.CityFeatures, "city_features.geojson")
+	build.SaveToFile(processing.CountryFeatures, "country_features.geojson")
+	build.SaveToFile(processing.AirportFeatures, "airport_features.geojson")
+}
+
 func main() {
 	start := time.Now()
 
-	build.BuildGEOJSONfromFile(&processing.CityFeatures)
-	build.BuildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson", &processing.CountryFeatures)
-	build.BuildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson", &processing.AirportFeatures)
-	processing.ProcessAllDataGEOJSON()
+	util.BuildFromFileMode = true
+	util.RunHeavy = true
+	shouldSaveProcess := false
+
+	if util.BuildFromFileMode {
+		buildFromFile()
+	} else {
+		build.BuildGEOJSONfromFile(&processing.CityFeatures, "assets/cities-population-1000.geojson")
+		build.BuildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_50m_admin_0_countries.geojson", &processing.CountryFeatures)
+		build.BuildGEOJSONfromURL("https://d2ad6b4ur7yvpq.cloudfront.net/naturalearth-3.3.0/ne_10m_airports.geojson", &processing.AirportFeatures)
+		processing.ProcessAllDataGEOJSON()
+	}
+
+	if shouldSaveProcess && !util.BuildFromFileMode {
+		saveToFile()
+	}
 	
 	r := gin.Default()
 

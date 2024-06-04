@@ -4,6 +4,9 @@ import (
 	"math"
 )
 
+var BuildFromFileMode bool
+var RunHeavy bool
+
 type FeatureCollection struct {
     Type     string     `json:"type"`
     Features []Feature  `json:"features"`

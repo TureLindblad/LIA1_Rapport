@@ -82,13 +82,19 @@ func ProcessAllDataGEOJSON() {
                 if PointInPolygon(util.Point{X: airportCoordinate[0], Y: airportCoordinate[1]}, polygon) {
 					numberAirports++
                     for _, city := range CityFeatures.Features {
-						cityCoordinate := []float64{
-							city.Geometry.Coordinates.([]interface{})[0].(float64),
-							city.Geometry.Coordinates.([]interface{})[1].(float64),
-						}
+						if util.RunHeavy {
+							cityCoordinate := []float64{
+								city.Geometry.Coordinates.([]interface{})[0].(float64),
+								city.Geometry.Coordinates.([]interface{})[1].(float64),
+							}
 
-						if city.Properties["marked"] != "marked" && PointInPolygon(util.Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, polygon) {
-							CheckCity(&city, airportCoordinate, &numConnections, &connectedPopulation)
+							if city.Properties["marked"] != "marked" && PointInPolygon(util.Point{X: cityCoordinate[0], Y: cityCoordinate[1]}, polygon) {
+								CheckCity(&city, airportCoordinate, &numConnections, &connectedPopulation)
+							}
+						} else {
+							if city.Properties["marked"] != "marked" {
+								CheckCity(&city, airportCoordinate, &numConnections, &connectedPopulation)
+							}
 						}
                     }
                     break

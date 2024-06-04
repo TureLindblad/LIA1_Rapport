@@ -25,9 +25,9 @@ func BuildGEOJSONfromURL(url string, f *util.FeatureCollection) {
 	}
 }
 
-func BuildGEOJSONfromFile(f *util.FeatureCollection) {
+func BuildGEOJSONfromFile(f *util.FeatureCollection, path string) {
 	// From: https://data.opendatasoft.com/	explore/dataset/geonames-all-cities-with-a-population-1000%40public/export/?disjunctive.cou_name_en&location=7,51.6998,12.62878&basemap=jawg.streets
-	geoJSONData, err := os.ReadFile("assets/cities-population-1000.geojson")
+	geoJSONData, err := os.ReadFile(path)
 	if err != nil {
 		log.Printf("Error reading GeoJSON file: %v", err)
 		return
@@ -37,5 +37,17 @@ func BuildGEOJSONfromFile(f *util.FeatureCollection) {
 	if err != nil {
 		log.Printf("Error unmarshalling GeoJSON: %v", err)
 		return
+	}
+}
+
+func SaveToFile(collection util.FeatureCollection, name string) {
+	u, err := json.Marshal(collection)
+	if err != nil {
+		panic(err)
+	}
+
+	err = os.WriteFile("assets/preMade/" + name, u, 0644)
+	if err != nil {
+		panic(err)
 	}
 }

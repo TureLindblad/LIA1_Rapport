@@ -43,9 +43,10 @@ func saveToFile() {
 func main() {
 	start := time.Now()
 
-	util.BuildFromFileMode = true
+	// Config to build from file or run heavy or light processing calculation
+	util.BuildFromFileMode = false
 	util.RunHeavy = true
-	shouldSaveProcess := false
+	shouldSaveProcess := true
 
 	if util.BuildFromFileMode {
 		buildFromFile()
